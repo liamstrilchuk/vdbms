@@ -11,10 +11,11 @@ int main(int argc, char** argv) {
 
 	server.Post("/insert", [&](const httplib::Request& req, httplib::Response& res) {
 		auto request_data = json::parse(req.body);
-		std::cout << req.body << std::endl;
+		uint32_t record_id = request_data["id"];
+		std::vector<float> record_vec = request_data["vector"];
 
+		engine->insert_record(record_id, record_vec, {});
 		auto response_data = json::object({{ "status", 200 }});
-		// engine->insert_record();
 		res.set_content(response_data.dump(), "application/json");
 	});
 
