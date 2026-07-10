@@ -13,8 +13,9 @@ int main(int argc, char** argv) {
 		auto request_data = json::parse(req.body);
 		uint32_t record_id = request_data["id"];
 		Embedding record_vec = request_data["vector"];
+		std::vector<uint32_t> edges = request_data["edges"];
 
-		engine->insert_record(record_id, record_vec, {});
+		engine->insert_record(record_id, record_vec, edges);
 		auto response_data = json::object({{ "status", 200 }});
 		res.set_content(response_data.dump(), "application/json");
 	});

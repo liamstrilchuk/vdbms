@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <unordered_set>
 #include "types.h"
 #include "vector_index.h"
 #include "graph_index.h"
@@ -13,8 +14,8 @@ public:
 	uint32_t find_nearest_neighbour(const Embedding& vec) const;
 
 private:
-	uint32_t node_count = 0;
-	
+	std::unordered_set<uint32_t> used_ids;
+
 	std::unique_ptr<VectorIndex> vector_index;
 	std::unique_ptr<GraphIndex> graph_index;
 };
