@@ -1,12 +1,11 @@
-from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
 import requests
+import csv
 
 COUNT_PAPERS = 5000
 API_BASE_URL = "http://localhost:3000"
 
 paper_data = [line.split("\t") for line in open("data/titleabs.tsv").read().split("\n")[:COUNT_PAPERS] if len(line) > 0]
-paper_dict = { int(item[0]): (item[1], item[2]) for item in paper_data }
+paper_dict = { int(item[0]): [item[1], item[2], None] for item in paper_data }
 
 split_and_cast = lambda data: [[int(x) for x in line.split(",")] for line in data if len(line) > 0]
 
@@ -25,35 +24,31 @@ for edge in edge_data:
 
 	edge_map_by_origin[mapping_dict_nid_pid[edge[0]]].append(mapping_dict_nid_pid[edge[1]])
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+with open("data/embeddings.csv", "r") as f:
+	reader = csv.reader(f)
+	for line in reader:
+		if int(line[0]) in paper_dict:
+			paper_dict[int(line[0])][2] = [float(x) for x in line[1].split(",")]
 
-vector_data_by_pid = {}
-
-for item in tqdm(paper_data, desc="Processing items"):
-	vector_data = model.encode(item[2], normalize_embeddings=True).tolist()
-	vector_data_by_pid[int(item[0])] = vector_data
+all_neighbour_pairs = []
 
 for item in paper_data:
-	if not int(item[0]) in edge_map_by_origin:
-		all_neighbours = []
-	else:
-		all_neighbours = edge_map_by_origin[int(item[0])]
+	pid = int(item[0])
+	all_neighbours = edge_map_by_origin[pid] if pid in edge_map_by_origin else []
+	included_neighbours = [n for n in all_neighbours if n in paper_dict]
+	all_neighbour_pairs.extend([[pid, nb] for nb in included_neighbours])
 	
-	included_neighbours = [n for n in all_neighbours if n in vector_data_by_pid]
+	vector_data = paper_dict[int(item[0])][2]
+
+	if vector_data is None:
+		print(item[0], "has no vector data")
 
 	resp = requests.post(f"{API_BASE_URL}/insert", json={
 		"id": int(item[0]),
-		"vector": vector_data,
-		"edges": included_neighbours
+		"vector": vector_data
 	})
 
-# while True:
-# 	search_term = input("Enter search term: ")
-# 	if not search_term:
-# 		break
-
-# 	resp = requests.post(f"{API_BASE_URL}/query", json={
-# 		"vector": model.encode(search_term, normalize_embeddings=True).tolist()
-# 	})
-# 	closest = resp.json()["closest_id"]
-# 	print(paper_dict[closest])
+resp = requests.post(f"{API_BASE_URL}/create-edges", json={
+	"edges": all_neighbour_pairs
+})
+print(resp.json())

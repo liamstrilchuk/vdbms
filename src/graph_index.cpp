@@ -4,6 +4,10 @@ GraphIndex::GraphIndex() {
 
 }
 
-void GraphIndex::add_edges(uint32_t source_id, const std::vector<uint32_t>& targets) {
-	this->adjacency_list.push_back({ source_id, targets });
+void GraphIndex::add_edge(uint32_t source, uint32_t dest) {
+	if (this->adjacency_list.find(source) == this->adjacency_list.end()) {
+		this->adjacency_list.insert({ source, {} });
+	}
+
+	this->adjacency_list.find(source)->second.push_back(dest);
 }

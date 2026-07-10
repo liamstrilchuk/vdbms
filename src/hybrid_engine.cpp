@@ -5,14 +5,17 @@ HybridEngine::HybridEngine() {
 	this->vector_index = std::make_unique<VectorIndex>();
 }
 
-void HybridEngine::insert_record(uint32_t id, const Embedding& vec, std::vector<uint32_t> linked_ids) {
+void HybridEngine::insert_record(uint32_t id, const Embedding& vec) {
 	if (this->used_ids.count(id) > 0) {
 		return;
 	}
 	
-	this->graph_index->add_edges(id, linked_ids);
 	this->vector_index->add_vector(id, vec);
 	this->used_ids.insert(id);
+}
+
+void HybridEngine::insert_edge(std::pair<uint32_t, uint32_t> edge) {
+	this->graph_index->add_edge(edge.first, edge.second);
 }
 
 uint32_t HybridEngine::find_nearest_neighbour(const Embedding& vec) const {

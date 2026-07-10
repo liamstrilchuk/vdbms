@@ -2,6 +2,7 @@
 #include "include/lib/json.hpp"
 #include "include/hybrid_engine.h"
 #include <iostream>
+#include <utility>
 
 using json = nlohmann::json;
 
@@ -13,9 +14,20 @@ int main(int argc, char** argv) {
 		auto request_data = json::parse(req.body);
 		uint32_t record_id = request_data["id"];
 		Embedding record_vec = request_data["vector"];
-		std::vector<uint32_t> edges = request_data["edges"];
 
-		engine->insert_record(record_id, record_vec, edges);
+		engine->insert_record(record_id, record_vec);
+		auto response_data = json::object({{ "status", 200 }});
+		res.set_content(response_data.dump(), "application/json");
+	});
+
+	server.Post("/create-edges", [&](const httplib::Request& req, httplib::Response& res) {
+		auto request_data = json::parse(req.body);
+		std::vector<std::vector<uint32_t>> edges = request_data["edges"];
+
+		for (auto pair : edges) {
+			engine->insert_edge(std::make_pair(pair[0], pair[1]));
+		}
+
 		auto response_data = json::object({{ "status", 200 }});
 		res.set_content(response_data.dump(), "application/json");
 	});

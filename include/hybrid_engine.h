@@ -9,7 +9,8 @@ class HybridEngine final {
 public:
 	HybridEngine();
 
-	void insert_record(uint32_t id, const Embedding& vec, const std::vector<uint32_t> linked_ids);
+	void insert_record(uint32_t id, const Embedding& vec);
+	void insert_edge(std::pair<uint32_t, uint32_t> edge);
 
 	uint32_t find_nearest_neighbour(const Embedding& vec) const;
 
