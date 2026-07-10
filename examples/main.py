@@ -1,7 +1,7 @@
 import requests
 import csv
 
-COUNT_PAPERS = 5000
+COUNT_PAPERS = 200000
 API_BASE_URL = "http://localhost:3000"
 
 paper_data = [line.split("\t") for line in open("data/titleabs.tsv").read().split("\n")[:COUNT_PAPERS] if len(line) > 0]
