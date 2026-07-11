@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <unordered_map>
+#include <random>
 #include "types.h"
 
 class HNSWGraph final {
@@ -12,6 +13,11 @@ private:
 	std::unordered_map<uint32_t, uint32_t> id_to_index;
 	std::vector<HNSWNode> nodes;
 	std::vector<std::vector<int>> layers;
+	bool is_initialized = false;
+
+	std::mt19937 gen;
+	std::uniform_real_distribution<double> dis;
 
 	void create_layers();
+	uint32_t get_node_layer();
 };
