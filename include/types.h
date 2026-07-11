@@ -14,10 +14,11 @@ struct EdgeList {
 struct VectorNode {
 	uint32_t id;
 	Embedding vector_data;
+	std::vector<uint32_t> neighbors;
 };
 
 struct HNSWNode {
-	Embedding vector_data;
-	std::vector<uint32_t> neighbors;
+	uint32_t node_index;
 	uint32_t hnsw_neighbors[constants::HNSW_M];
+	uint32_t lower_level_index;
 };

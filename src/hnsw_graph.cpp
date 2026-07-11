@@ -7,8 +7,42 @@ HNSWGraph::HNSWGraph() : gen(std::random_device{}()), dis(0.0, 1.0) {
 }
 
 void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
-	uint32_t layer = this->get_node_layer();
-	this->is_initialized = true;
+	if (this->id_to_index.find(node_id) != this->id_to_index.end()) {
+		return;
+	}
+
+	this->nodes.push_back({ node_id, vec, {} });
+	this->id_to_index.insert({ node_id, this->nodes.size() - 1 });
+
+	if (!this->is_initialized) {
+		this->is_initialized = true;
+		uint32_t last_node_index = 0;
+
+		for (auto& layer : this->layers) {
+			layer.emplace_back(HNSWNode{
+				.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
+				.hnsw_neighbors = {},
+				.lower_level_index = last_node_index
+			});
+			last_node_index = layer.size() - 1;
+		}
+
+		return;
+	}
+
+	int current_layer = this->layers.size() - 1;
+	uint32_t max_add_layer = this->get_node_layer();
+
+	HNSWNode* current = &this->layers[current_layer][0];
+
+	while (current_layer > -1) {
+		HNSWNode* closest = this->find_closest_in_layer(vec, *current);
+		current_layer--;
+	}
+}
+
+HNSWNode* HNSWGraph::find_closest_in_layer(Embedding& vec, HNSWNode& start_node) const {
+
 }
 
 uint32_t HNSWGraph::get_node_layer() {
