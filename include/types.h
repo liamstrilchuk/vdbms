@@ -19,6 +19,6 @@ struct VectorNode {
 
 struct HNSWNode {
 	uint32_t node_index;
-	uint32_t hnsw_neighbors[constants::HNSW_M];
+	int32_t hnsw_neighbors[constants::HNSW_M];
 	uint32_t lower_level_index;
 };
