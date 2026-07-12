@@ -20,6 +20,7 @@ private:
 
 	void create_layers();
 	uint32_t get_node_layer();
-	HNSWNode* find_closest_in_layer(Embedding& vec, HNSWNode& start_node, std::vector<HNSWNode>& layer) const;
+	std::vector<uint32_t> run_ef_construction(Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer) const;
+	uint32_t find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const;
 	double calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const;
 };
