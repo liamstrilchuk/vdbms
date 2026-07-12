@@ -1,4 +1,5 @@
 #include "../include/hnsw_graph.h"
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <unordered_set>
@@ -38,13 +39,15 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 	while (current_layer > -1) {
 		uint32_t closest = this->find_closest_in_layer(vec, 0, this->layers[current_layer]);
 		if (max_add_layer >= current_layer) {
-			std::vector<uint32_t> ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer]);
+			auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer]);
 		}
 		current_layer--;
 	}
 }
 
-std::vector<uint32_t> HNSWGraph::run_ef_construction(Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer) const {
+ef_pair_list HNSWGraph::run_ef_construction(
+	Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer
+) const {
 	std::unordered_set<uint32_t> explored_nodes;
 
 	struct QueueElement {
@@ -61,9 +64,13 @@ std::vector<uint32_t> HNSWGraph::run_ef_construction(Embedding& vec, uint32_t cl
 	};
 
 	std::priority_queue<QueueElement> working_queue;
-	std::priority_queue<QueueElement, std::vector<QueueElement>, std::greater<QueueElement>> candidate_pool;
+	std::priority_queue<
+		QueueElement, std::vector<QueueElement>, std::greater<QueueElement>
+	> candidate_pool;
 
-	double closest_similarity = this->calculate_cosine_similarity(vec, this->nodes[layer[closest].node_index].vector_data);
+	double closest_similarity = this->calculate_cosine_similarity(
+		vec, this->nodes[layer[closest].node_index].vector_data
+	);
 	candidate_pool.push({ closest, closest_similarity });
 	working_queue.push({ closest, closest_similarity });
 	explored_nodes.insert(closest);
@@ -102,18 +109,56 @@ std::vector<uint32_t> HNSWGraph::run_ef_construction(Embedding& vec, uint32_t cl
 		}
 	}
 
-	std::vector<uint32_t> result;
+	ef_pair_list result;
 
 	while (!candidate_pool.empty()) {
-		result.push_back(candidate_pool.top().index);
+		result.push_back({ candidate_pool.top().index, candidate_pool.top().score });
 		candidate_pool.pop();
 	}
 
 	return result;
 }
 
-uint32_t HNSWGraph::find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const {
-	double best_similarity = this->calculate_cosine_similarity(vec, this->nodes[layer[start_node].node_index].vector_data);
+std::vector<int32_t> HNSWGraph::prune_ef_construction(
+	Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer
+) const {
+	std::vector<int32_t> selected_M(constants::HNSW_M, -1);
+	std::sort(ef_construction.begin(), ef_construction.end(), [](const auto& a, const auto& b) {
+		return a.second < b.second;
+	});
+	int top_index = -1;
+
+	while (top_index < constants::HNSW_M - 1 && ef_construction.size() > 0) {
+		auto top = ef_construction.back();
+		ef_construction.pop_back();
+		bool should_add = true;
+
+		for (int idx = 0; idx <= top_index; idx++) {
+			double sim = this->calculate_cosine_similarity(
+				this->nodes[layer[selected_M[idx]].node_index].vector_data,
+				this->nodes[layer[top.first].node_index].vector_data
+			);
+
+			if (sim > top.second) {
+				should_add = false;
+				break;
+			}
+		}
+
+		if (should_add) {
+			selected_M[++top_index] = top.first;
+		}
+	}
+
+	return selected_M;
+}
+
+uint32_t HNSWGraph::find_closest_in_layer(
+	Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer
+) const {
+	double best_similarity = this->calculate_cosine_similarity(
+		vec, this->nodes[layer[start_node].node_index].vector_data
+	);
 	uint32_t best_index = start_node;
 
 	bool has_changed = true;
@@ -128,7 +173,9 @@ uint32_t HNSWGraph::find_closest_in_layer(Embedding& vec, uint32_t start_node, s
 				continue;
 			}
 
-			double similarity = this->calculate_cosine_similarity(vec, this->nodes[layer[neighbor_idx].node_index].vector_data);
+			double similarity = this->calculate_cosine_similarity(
+				vec, this->nodes[layer[neighbor_idx].node_index].vector_data
+			);
 
 			if (similarity > best_similarity) {
 				best_similarity = similarity;
