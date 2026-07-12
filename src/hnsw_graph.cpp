@@ -85,7 +85,7 @@ std::vector<uint32_t> HNSWGraph::run_ef_construction(Embedding& vec, uint32_t cl
 
 				const Embedding& nvec = this->nodes[layer[neighbors[idx]].node_index].vector_data;
 				double similarity = this->calculate_cosine_similarity(vec, nvec);
-				
+
 				QueueElement worst = candidate_pool.top();
 				bool should_add = candidate_pool.size() < constants::HNSW_EF_CONSTRUCTION;
 
@@ -114,38 +114,26 @@ std::vector<uint32_t> HNSWGraph::run_ef_construction(Embedding& vec, uint32_t cl
 
 uint32_t HNSWGraph::find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const {
 	double best_similarity = this->calculate_cosine_similarity(vec, this->nodes[layer[start_node].node_index].vector_data);
-	HNSWNode* best_node = &layer[start_node];
 	uint32_t best_index = start_node;
-	std::unordered_set<uint32_t> explored_nodes;
-	std::vector<uint32_t> priority_queue;
 
-	for (int idx = 0; idx < constants::HNSW_M; idx++) {
-		if (best_node->hnsw_neighbors[idx] != -1) {
-			priority_queue.push_back(best_node->hnsw_neighbors[idx]);
-			explored_nodes.insert(best_node->hnsw_neighbors[idx]);
-		}
-	}
-
-	while (priority_queue.size() > 0) {
-		uint32_t current_idx = priority_queue.back();
-		HNSWNode* current = &layer[current_idx];
-		priority_queue.pop_back();
-
-		double similarity = this->calculate_cosine_similarity(vec, this->nodes[current->node_index].vector_data);
-
-		if (similarity < best_similarity) {
-			continue;
-		}
-
-		best_similarity = similarity;
-		best_node = current;
-		best_index = current_idx;
+	bool has_changed = true;
+	while (has_changed) {
+		has_changed = false;
+		int32_t* neighbors = layer[best_index].hnsw_neighbors;
 
 		for (int idx = 0; idx < constants::HNSW_M; idx++) {
-			auto val = current->hnsw_neighbors[idx];
-			if (val != -1 && explored_nodes.find(val) == explored_nodes.end()) {
-				priority_queue.push_back(val);
-				explored_nodes.insert(val);
+			uint32_t neighbor_idx = neighbors[idx];
+
+			if (neighbor_idx == -1) {
+				continue;
+			}
+
+			double similarity = this->calculate_cosine_similarity(vec, this->nodes[layer[neighbor_idx].node_index].vector_data);
+
+			if (similarity > best_similarity) {
+				best_similarity = similarity;
+				best_index = neighbor_idx;
+				has_changed = true;
 			}
 		}
 	}
