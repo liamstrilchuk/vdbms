@@ -1,5 +1,6 @@
 #include "../include/hnsw_graph.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <iostream>
 #include <unordered_set>
@@ -35,12 +36,24 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 
 	int current_layer = this->layers.size() - 1;
 	uint32_t max_add_layer = this->get_node_layer();
+	uint32_t last_node_index = 0;
 
 	while (current_layer > -1) {
 		uint32_t closest = this->find_closest_in_layer(vec, 0, this->layers[current_layer]);
+
 		if (max_add_layer >= current_layer) {
 			auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer]);
+			auto pruned = this->prune_ef_construction(vec, ef_const, this->layers[current_layer]);
+
+			this->layers[current_layer].emplace_back(HNSWNode{
+				.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
+				.lower_level_index = last_node_index
+			});
+
+			std::copy(pruned, pruned + constants::HNSW_M, this->layers[current_layer].back().hnsw_neighbors);
+			last_node_index = this->layers[current_layer].size() - 1;
 		}
+		
 		current_layer--;
 	}
 }
@@ -119,10 +132,10 @@ ef_pair_list HNSWGraph::run_ef_construction(
 	return result;
 }
 
-std::vector<int32_t> HNSWGraph::prune_ef_construction(
+int32_t* HNSWGraph::prune_ef_construction(
 	Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer
 ) const {
-	std::vector<int32_t> selected_M(constants::HNSW_M, -1);
+	int32_t selected_M[constants::HNSW_M] = {-1};
 	std::sort(ef_construction.begin(), ef_construction.end(), [](const auto& a, const auto& b) {
 		return a.second < b.second;
 	});
