@@ -85,13 +85,15 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 	});
 	
 	for (int idx = 0; idx < constants::HNSW_M; idx++) {
-		neighbor_list.push_back({
-			layer[node_id].hnsw_neighbors[idx],
-			this->calculate_cosine_similarity(
-				node_vector_data,
-				this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data
-			)
-		});
+		if (layer[node_id].hnsw_neighbors[idx] != -1) {
+			neighbor_list.push_back({
+				layer[node_id].hnsw_neighbors[idx],
+				this->calculate_cosine_similarity(
+					node_vector_data,
+					this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data
+				)
+			});
+		}
 	}
 
 	std::vector<int32_t> pruned = this->prune_ef_construction(node_vector_data, neighbor_list, layer);
@@ -222,7 +224,7 @@ uint32_t HNSWGraph::find_closest_in_layer(
 		for (int idx = 0; idx < constants::HNSW_M; idx++) {
 			uint32_t neighbor_idx = neighbors[idx];
 
-			if (neighbor_idx == -1) {
+			if (neighbors[idx] == -1) {
 				continue;
 			}
 
