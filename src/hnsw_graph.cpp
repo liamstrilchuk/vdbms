@@ -52,10 +52,41 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 
 			std::copy(pruned, pruned + constants::HNSW_M, this->layers[current_layer].back().hnsw_neighbors);
 			last_node_index = this->layers[current_layer].size() - 1;
+
+			for (int idx = 0; idx < constants::HNSW_M; idx++) {
+				if (pruned[idx] != -1) {
+					this->create_reverse_connection(pruned[idx], last_node_index, this->layers[current_layer]);
+				}
+			}
 		}
-		
+
 		current_layer--;
 	}
+}
+
+void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer) {
+	Embedding& node_vector_data = this->nodes[layer[node_id].node_index].vector_data;
+	ef_pair_list neighbor_list;
+	neighbor_list.push_back({
+		new_id,
+		this->calculate_cosine_similarity(
+			node_vector_data,
+			this->nodes[layer[new_id].node_index].vector_data
+		)
+	});
+	
+	for (int idx = 0; idx < constants::HNSW_M; idx++) {
+		neighbor_list.push_back({
+			layer[node_id].hnsw_neighbors[idx],
+			this->calculate_cosine_similarity(
+				node_vector_data,
+				this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data
+			)
+		});
+	}
+
+	int32_t* pruned = this->prune_ef_construction(node_vector_data, neighbor_list, layer);
+	std::copy(pruned, pruned + constants::HNSW_M, layer[node_id].hnsw_neighbors);
 }
 
 ef_pair_list HNSWGraph::run_ef_construction(
