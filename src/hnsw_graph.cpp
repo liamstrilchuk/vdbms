@@ -36,10 +36,11 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 
 	int current_layer = this->layers.size() - 1;
 	uint32_t max_add_layer = this->get_node_layer();
-	uint32_t last_node_index = 0;
+	int32_t last_node_index = -1;
+	uint32_t entry_point = 0;
 
 	while (current_layer > -1) {
-		uint32_t closest = this->find_closest_in_layer(vec, 0, this->layers[current_layer]);
+		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer]);
 
 		if (max_add_layer >= current_layer) {
 			auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer]);
@@ -47,10 +48,14 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 
 			this->layers[current_layer].emplace_back(HNSWNode{
 				.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
-				.lower_level_index = last_node_index
+				.lower_level_index = 0
 			});
 
-			std::copy(pruned, pruned + constants::HNSW_M, this->layers[current_layer].back().hnsw_neighbors);
+			if (last_node_index != -1) {
+				this->layers[current_layer + 1][last_node_index].lower_level_index = this->layers[current_layer].size() - 1;
+			}
+
+			std::copy(pruned.begin(), pruned.end(), this->layers[current_layer].back().hnsw_neighbors);
 			last_node_index = this->layers[current_layer].size() - 1;
 
 			for (int idx = 0; idx < constants::HNSW_M; idx++) {
@@ -58,6 +63,10 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 					this->create_reverse_connection(pruned[idx], last_node_index, this->layers[current_layer]);
 				}
 			}
+		}
+
+		if (current_layer > 0) {
+			entry_point = this->layers[current_layer][closest].lower_level_index;
 		}
 
 		current_layer--;
@@ -85,8 +94,8 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 		});
 	}
 
-	int32_t* pruned = this->prune_ef_construction(node_vector_data, neighbor_list, layer);
-	std::copy(pruned, pruned + constants::HNSW_M, layer[node_id].hnsw_neighbors);
+	std::vector<int32_t> pruned = this->prune_ef_construction(node_vector_data, neighbor_list, layer);
+	std::copy(pruned.begin(), pruned.end(), layer[node_id].hnsw_neighbors);
 }
 
 ef_pair_list HNSWGraph::run_ef_construction(
@@ -163,10 +172,10 @@ ef_pair_list HNSWGraph::run_ef_construction(
 	return result;
 }
 
-int32_t* HNSWGraph::prune_ef_construction(
+std::vector<int32_t> HNSWGraph::prune_ef_construction(
 	Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer
 ) const {
-	int32_t selected_M[constants::HNSW_M] = {-1};
+	std::vector<int32_t> selected_M(constants::HNSW_M, -1);
 	std::sort(ef_construction.begin(), ef_construction.end(), [](const auto& a, const auto& b) {
 		return a.second < b.second;
 	});

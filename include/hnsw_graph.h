@@ -25,7 +25,7 @@ private:
 	ef_pair_list run_ef_construction(
 		Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer
 	) const;
-	int32_t* prune_ef_construction(Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer) const;
+	std::vector<int32_t> prune_ef_construction(Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer) const;
 	void create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer);
 	uint32_t find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const;
 	double calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const;
