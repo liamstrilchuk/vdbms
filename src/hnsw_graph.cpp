@@ -42,31 +42,34 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 	while (current_layer > -1) {
 		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer]);
 
-		if (max_add_layer >= current_layer) {
-			auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer], constants::HNSW_EF_CONSTRUCTION);
-			auto pruned = this->prune_ef_construction(vec, ef_const, this->layers[current_layer]);
-
-			this->layers[current_layer].emplace_back(HNSWNode{
-				.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
-				.lower_level_index = 0
-			});
-
-			if (last_node_index != -1) {
-				this->layers[current_layer + 1][last_node_index].lower_level_index = this->layers[current_layer].size() - 1;
-			}
-
-			std::copy(pruned.begin(), pruned.end(), this->layers[current_layer].back().hnsw_neighbors);
-			last_node_index = this->layers[current_layer].size() - 1;
-
-			for (int idx = 0; idx < constants::HNSW_M; idx++) {
-				if (pruned[idx] != -1) {
-					this->create_reverse_connection(pruned[idx], last_node_index, this->layers[current_layer]);
-				}
-			}
-		}
-
 		if (current_layer > 0) {
 			entry_point = this->layers[current_layer][closest].lower_level_index;
+		}
+
+		if (max_add_layer < current_layer) {
+			current_layer--;
+			continue;
+		}
+
+		auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer], constants::HNSW_EF_CONSTRUCTION);
+		auto pruned = this->prune_ef_construction(vec, ef_const, this->layers[current_layer]);
+
+		this->layers[current_layer].emplace_back(HNSWNode{
+			.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
+			.lower_level_index = 0
+		});
+
+		if (last_node_index != -1) {
+			this->layers[current_layer + 1][last_node_index].lower_level_index = this->layers[current_layer].size() - 1;
+		}
+
+		std::copy(pruned.begin(), pruned.end(), this->layers[current_layer].back().hnsw_neighbors);
+		last_node_index = this->layers[current_layer].size() - 1;
+
+		for (int idx = 0; idx < constants::HNSW_M; idx++) {
+			if (pruned[idx] != -1) {
+				this->create_reverse_connection(pruned[idx], last_node_index, this->layers[current_layer]);
+			}
 		}
 
 		current_layer--;
@@ -112,15 +115,17 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 	});
 	
 	for (int idx = 0; idx < constants::HNSW_M; idx++) {
-		if (layer[node_id].hnsw_neighbors[idx] != -1) {
-			neighbor_list.push_back({
-				layer[node_id].hnsw_neighbors[idx],
-				this->calculate_cosine_similarity(
-					node_vector_data,
-					this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data
-				)
-			});
+		if (layer[node_id].hnsw_neighbors[idx] == -1) {
+			continue;
 		}
+
+		neighbor_list.push_back({
+			layer[node_id].hnsw_neighbors[idx],
+			this->calculate_cosine_similarity(
+				node_vector_data,
+				this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data
+			)
+		});
 	}
 
 	std::vector<int32_t> pruned = this->prune_ef_construction(node_vector_data, neighbor_list, layer);
@@ -169,24 +174,26 @@ ef_pair_list HNSWGraph::run_ef_construction(
 		int32_t* neighbors = layer[current.index].hnsw_neighbors;
 
 		for (int idx = 0; idx < constants::HNSW_M; idx++) {
-			if (neighbors[idx] != -1 && explored_nodes.find(neighbors[idx]) == explored_nodes.end()) {
-				explored_nodes.insert(neighbors[idx]);
+			if (neighbors[idx] == -1 || explored_nodes.find(neighbors[idx]) != explored_nodes.end()) {
+				continue;
+			}
 
-				const Embedding& nvec = this->nodes[layer[neighbors[idx]].node_index].vector_data;
-				double similarity = this->calculate_cosine_similarity(vec, nvec);
+			explored_nodes.insert(neighbors[idx]);
 
-				QueueElement worst = candidate_pool.top();
-				bool should_add = candidate_pool.size() < node_count;
+			const Embedding& nvec = this->nodes[layer[neighbors[idx]].node_index].vector_data;
+			double similarity = this->calculate_cosine_similarity(vec, nvec);
 
-				if (candidate_pool.size() >= node_count && similarity > worst.score) {
-					candidate_pool.pop();
-					should_add = true;
-				}
+			QueueElement worst = candidate_pool.top();
+			bool should_add = candidate_pool.size() < node_count;
 
-				if (should_add) {
-					candidate_pool.push({ static_cast<uint32_t>(neighbors[idx]), similarity });
-					working_queue.push({ static_cast<uint32_t>(neighbors[idx]), similarity });
-				}
+			if (candidate_pool.size() >= node_count && similarity > worst.score) {
+				candidate_pool.pop();
+				should_add = true;
+			}
+
+			if (should_add) {
+				candidate_pool.push({ static_cast<uint32_t>(neighbors[idx]), similarity });
+				working_queue.push({ static_cast<uint32_t>(neighbors[idx]), similarity });
 			}
 		}
 	}
