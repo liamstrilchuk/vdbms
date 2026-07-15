@@ -1,7 +1,8 @@
 import requests
 import csv
+from sentence_transformers import SentenceTransformer
 
-COUNT_PAPERS = 200000
+COUNT_PAPERS = 10000
 API_BASE_URL = "http://localhost:3000"
 
 paper_data = [line.split("\t") for line in open("data/titleabs.tsv").read().split("\n")[:COUNT_PAPERS] if len(line) > 0]
@@ -48,7 +49,15 @@ for item in paper_data:
 		"vector": vector_data
 	})
 
-resp = requests.post(f"{API_BASE_URL}/create-edges", json={
-	"edges": all_neighbour_pairs
-})
-print(resp.json())
+model = SentenceTransformer("all-MiniLM-L6-v2")
+
+while True:
+	search_term = input("Enter search term: ")
+	if not search_term:
+		break
+
+	resp = requests.post(f"{API_BASE_URL}/query", json={
+		"vector": model.encode(search_term, normalize_embeddings=True).tolist()
+	})
+	closest = resp.json()["closest_id"][0]
+	print(paper_dict[closest])
