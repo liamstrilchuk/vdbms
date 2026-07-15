@@ -43,7 +43,7 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer]);
 
 		if (max_add_layer >= current_layer) {
-			auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer]);
+			auto ef_const = this->run_ef_construction(vec, closest, this->layers[current_layer], constants::HNSW_EF_CONSTRUCTION);
 			auto pruned = this->prune_ef_construction(vec, ef_const, this->layers[current_layer]);
 
 			this->layers[current_layer].emplace_back(HNSWNode{
@@ -71,6 +71,33 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 
 		current_layer--;
 	}
+}
+
+std::vector<uint32_t> HNSWGraph::search(Embedding& vec, int knn) {
+	int current_layer = this->layers.size() - 1;
+	uint32_t entry_point = 0;
+
+	while (current_layer > 0) {
+		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer]);
+
+		entry_point = this->layers[current_layer][closest].lower_level_index;
+
+		current_layer--;
+	}
+
+	auto ef_const = this->run_ef_construction(
+		vec, entry_point, this->layers[0],
+		std::max(constants::HNSW_EF_SEARCH, knn)
+	);
+
+	std::vector<uint32_t> results;
+	results.reserve(knn);
+	
+	for (int idx = ef_const.size() - 1; idx >= 0 && results.size() < knn; idx--) {
+		results.push_back(this->nodes[ef_const[idx].first].id);
+	}
+
+	return results;
 }
 
 void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer) {
@@ -101,7 +128,7 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 }
 
 ef_pair_list HNSWGraph::run_ef_construction(
-	Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer
+	Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer, const int node_count
 ) const {
 	std::unordered_set<uint32_t> explored_nodes;
 
@@ -149,9 +176,9 @@ ef_pair_list HNSWGraph::run_ef_construction(
 				double similarity = this->calculate_cosine_similarity(vec, nvec);
 
 				QueueElement worst = candidate_pool.top();
-				bool should_add = candidate_pool.size() < constants::HNSW_EF_CONSTRUCTION;
+				bool should_add = candidate_pool.size() < node_count;
 
-				if (candidate_pool.size() >= constants::HNSW_EF_CONSTRUCTION && similarity > worst.score) {
+				if (candidate_pool.size() >= node_count && similarity > worst.score) {
 					candidate_pool.pop();
 					should_add = true;
 				}
