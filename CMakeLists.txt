@@ -4,11 +4,15 @@ project(vdbms LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(include)
+file(GLOB_RECURSE VDBMS_SOURCES "src/*.cpp")
 
-file(GLOB_RECURSE SOURCES
-	"src/*.cpp",
-	"main.cpp"
-)
+add_library(vdbms_core STATIC ${VDBMS_SOURCES})
+target_include_directories(vdbms_core PUBLIC include)
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(vdbms main.cpp)
+target_link_libraries(vdbms PRIVATE vdbms_core)
+
+add_executable(recall_test test/recall.cpp)
+target_link_libraries(recall_test PRIVATE vdbms_core)
+
+add_compile_options(-O3)
