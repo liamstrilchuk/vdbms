@@ -5,6 +5,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <queue>
+#include <immintrin.h>
 
 HNSWGraph::HNSWGraph() : gen(std::random_device{}()), dis(0.0, 1.0) {
 	this->create_layers();
@@ -108,9 +109,10 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 	ef_pair_list neighbor_list;
 	neighbor_list.push_back({
 		new_id,
-		this->calculate_cosine_similarity(
-			node_vector_data,
-			this->nodes[layer[new_id].node_index].vector_data
+		this->calculate_cosine_similarity_avx2(
+			node_vector_data.data(),
+			this->nodes[layer[new_id].node_index].vector_data.data(),
+			384
 		)
 	});
 	
@@ -121,9 +123,10 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 
 		neighbor_list.push_back({
 			layer[node_id].hnsw_neighbors[idx],
-			this->calculate_cosine_similarity(
-				node_vector_data,
-				this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data
+			this->calculate_cosine_similarity_avx2(
+				node_vector_data.data(),
+				this->nodes[layer[layer[node_id].hnsw_neighbors[idx]].node_index].vector_data.data(),
+				384
 			)
 		});
 	}
@@ -139,7 +142,7 @@ ef_pair_list HNSWGraph::run_ef_construction(
 
 	struct QueueElement {
 		uint32_t index;
-		double score;
+		float score;
 
 		bool operator<(const QueueElement& other) const {
 			return this->score < other.score;
@@ -155,8 +158,8 @@ ef_pair_list HNSWGraph::run_ef_construction(
 		QueueElement, std::vector<QueueElement>, std::greater<QueueElement>
 	> candidate_pool;
 
-	double closest_similarity = this->calculate_cosine_similarity(
-		vec, this->nodes[layer[closest].node_index].vector_data
+	float closest_similarity = this->calculate_cosine_similarity_avx2(
+		vec.data(), this->nodes[layer[closest].node_index].vector_data.data(), 384
 	);
 	candidate_pool.push({ closest, closest_similarity });
 	working_queue.push({ closest, closest_similarity });
@@ -181,7 +184,7 @@ ef_pair_list HNSWGraph::run_ef_construction(
 			this->visited_tracker[neighbors[idx]] = this->current_visited_version;
 
 			const Embedding& nvec = this->nodes[layer[neighbors[idx]].node_index].vector_data;
-			double similarity = this->calculate_cosine_similarity(vec, nvec);
+			float similarity = this->calculate_cosine_similarity_avx2(vec.data(), nvec.data(), 384);
 
 			QueueElement worst = candidate_pool.top();
 			bool should_add = candidate_pool.size() < node_count;
@@ -223,9 +226,10 @@ std::vector<int32_t> HNSWGraph::prune_ef_construction(
 		bool should_add = true;
 
 		for (int idx = 0; idx <= top_index; idx++) {
-			double sim = this->calculate_cosine_similarity(
-				this->nodes[layer[selected_M[idx]].node_index].vector_data,
-				this->nodes[layer[top.first].node_index].vector_data
+			float sim = this->calculate_cosine_similarity_avx2(
+				this->nodes[layer[selected_M[idx]].node_index].vector_data.data(),
+				this->nodes[layer[top.first].node_index].vector_data.data(),
+				384
 			);
 
 			if (sim > top.second) {
@@ -245,8 +249,8 @@ std::vector<int32_t> HNSWGraph::prune_ef_construction(
 uint32_t HNSWGraph::find_closest_in_layer(
 	Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer
 ) const {
-	double best_similarity = this->calculate_cosine_similarity(
-		vec, this->nodes[layer[start_node].node_index].vector_data
+	float best_similarity = this->calculate_cosine_similarity_avx2(
+		vec.data(), this->nodes[layer[start_node].node_index].vector_data.data(), 384
 	);
 	uint32_t best_index = start_node;
 
@@ -262,8 +266,8 @@ uint32_t HNSWGraph::find_closest_in_layer(
 				continue;
 			}
 
-			double similarity = this->calculate_cosine_similarity(
-				vec, this->nodes[layer[neighbor_idx].node_index].vector_data
+			float similarity = this->calculate_cosine_similarity_avx2(
+				vec.data(), this->nodes[layer[neighbor_idx].node_index].vector_data.data(), 384
 			);
 
 			if (similarity > best_similarity) {
@@ -277,14 +281,34 @@ uint32_t HNSWGraph::find_closest_in_layer(
 	return best_index;
 }
 
-double HNSWGraph::calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const {
-	double sum = 0;
+float HNSWGraph::calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const {
+	float sum = 0;
 
 	for (int idx = 0; idx < vec1.size(); idx++) {
 		sum += vec1[idx] * vec2[idx];
 	}
 
 	return sum;
+}
+
+float HNSWGraph::calculate_cosine_similarity_avx2(const float* vec1, const float* vec2, size_t dim) const {
+	size_t i = 0;
+	__m256 sum_vec = _mm256_setzero_ps();
+
+	for (; i + 7 < dim; i += 8) {
+		__m256 v1 = _mm256_loadu_ps(vec1 + i);
+		__m256 v2 = _mm256_loadu_ps(vec2 + i);
+		sum_vec = _mm256_fmadd_ps(v1, v2, sum_vec);
+	}
+
+	float temp[8];
+	_mm256_storeu_ps(temp, sum_vec);
+	float scalar_sum = temp[0] + temp[1] + temp[2] + temp[3] + temp[4] + temp[5] + temp[6] + temp[7];
+	for (; i < dim; i++) {
+		scalar_sum += vec1[i] * vec2[i];
+	}
+
+	return scalar_sum;
 }
 
 uint32_t HNSWGraph::get_node_layer() {

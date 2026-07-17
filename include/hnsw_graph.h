@@ -4,7 +4,7 @@
 #include <random>
 #include "types.h"
 
-using ef_pair_list = std::vector<std::pair<uint32_t, double>>;
+using ef_pair_list = std::vector<std::pair<uint32_t, float>>;
 
 class HNSWGraph final {
 public:
@@ -32,6 +32,7 @@ private:
 	std::vector<int32_t> prune_ef_construction(Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer) const;
 	void create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer);
 	uint32_t find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const;
-	double calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const;
+	float calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const;
+	float calculate_cosine_similarity_avx2(const float* vec1, const float* vec2, size_t dim) const;
 	void prepare_visited_tracker(size_t required_size) const;
 };

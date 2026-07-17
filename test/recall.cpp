@@ -15,7 +15,7 @@ int main() {
 	auto graph = std::make_unique<HNSWGraph>();
 	std::vector<std::vector<float>> embeddings;
 
-	const int NUM_NODES = 10000;
+	const int NUM_NODES = 100000;
 
 	auto add_start = std::chrono::steady_clock::now();
 
