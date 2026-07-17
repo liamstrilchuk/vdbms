@@ -21,6 +21,9 @@ private:
 	std::mt19937 gen;
 	std::uniform_real_distribution<double> dis;
 
+	mutable std::vector<uint32_t> visited_tracker;
+	mutable uint32_t current_visited_version = 0;
+
 	void create_layers();
 	uint32_t get_node_layer();
 	ef_pair_list run_ef_construction(
@@ -30,4 +33,5 @@ private:
 	void create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer);
 	uint32_t find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const;
 	double calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const;
+	void prepare_visited_tracker(size_t required_size) const;
 };

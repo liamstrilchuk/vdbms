@@ -135,7 +135,7 @@ void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std
 ef_pair_list HNSWGraph::run_ef_construction(
 	Embedding& vec, uint32_t closest, std::vector<HNSWNode>& layer, const int node_count
 ) const {
-	std::unordered_set<uint32_t> explored_nodes;
+	this->prepare_visited_tracker(layer.size());
 
 	struct QueueElement {
 		uint32_t index;
@@ -160,7 +160,7 @@ ef_pair_list HNSWGraph::run_ef_construction(
 	);
 	candidate_pool.push({ closest, closest_similarity });
 	working_queue.push({ closest, closest_similarity });
-	explored_nodes.insert(closest);
+	this->visited_tracker[closest] = this->current_visited_version;
 
 	while (working_queue.size() > 0) {
 		QueueElement current = working_queue.top();
@@ -174,11 +174,11 @@ ef_pair_list HNSWGraph::run_ef_construction(
 		int32_t* neighbors = layer[current.index].hnsw_neighbors;
 
 		for (int idx = 0; idx < constants::HNSW_M; idx++) {
-			if (neighbors[idx] == -1 || explored_nodes.find(neighbors[idx]) != explored_nodes.end()) {
+			if (neighbors[idx] == -1 || this->visited_tracker[neighbors[idx]] == this->current_visited_version) {
 				continue;
 			}
 
-			explored_nodes.insert(neighbors[idx]);
+			this->visited_tracker[neighbors[idx]] = this->current_visited_version;
 
 			const Embedding& nvec = this->nodes[layer[neighbors[idx]].node_index].vector_data;
 			double similarity = this->calculate_cosine_similarity(vec, nvec);
@@ -314,5 +314,18 @@ void HNSWGraph::create_layers() {
 
 		this->layers.push_back({});
 		layer++;
+	}
+}
+
+void HNSWGraph::prepare_visited_tracker(size_t required_size) const {
+	if (this->visited_tracker.size() < required_size) {
+		this->visited_tracker.resize(required_size, 0);
+	}
+
+	this->current_visited_version++;
+
+	if (this->current_visited_version == 0) {
+		std::fill(this->visited_tracker.begin(), this->visited_tracker.end(), 0);
+		this->current_visited_version = 1;
 	}
 }

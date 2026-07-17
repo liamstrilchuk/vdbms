@@ -15,7 +15,7 @@ int main() {
 	auto graph = std::make_unique<HNSWGraph>();
 	std::vector<std::vector<float>> embeddings;
 
-	const int NUM_NODES = 1000;
+	const int NUM_NODES = 10000;
 
 	auto add_start = std::chrono::steady_clock::now();
 
@@ -46,12 +46,12 @@ int main() {
 	float recall1 = recalled1 / static_cast<float>(NUM_NODES) * 100;
 
 	std::cout << std::fixed << std::setprecision(3);
-	std::cout << "Recall Values" << std::endl;
+	std::cout << "RECALL VALUES" << std::endl;
 	std::cout << "Recall@1: " << recall1 << std::endl;
 
 	float time_per_add = static_cast<float>(add_elapsed) / static_cast<float>(NUM_NODES);
 	float time_per_query = static_cast<float>(query_elapsed) / static_cast<float>(NUM_NODES);
-	std::cout << std::endl << "Performance" << std::endl;
+	std::cout << std::endl << "PERFORMANCE" << std::endl;
 	std::cout << "Time per insertion: " << time_per_add << " ms" << std::endl;
 	std::cout << "Time per query: " << time_per_query << " ms" << std::endl;
 }
