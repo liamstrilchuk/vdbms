@@ -12,6 +12,8 @@ public:
 	void add_node(uint32_t node_id, Embedding& vec);
 	std::vector<uint32_t> search(Embedding& vec, int knn);
 
+	mutable long long step_count = 0;
+
 private:
 	std::unordered_map<uint32_t, uint32_t> id_to_index;
 	std::vector<VectorNode> nodes;

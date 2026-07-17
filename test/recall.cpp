@@ -66,6 +66,9 @@ int main() {
 	std::cout << std::endl << "PERFORMANCE" << std::endl;
 	std::cout << "Time per insertion: " << time_per_add << " ms" << std::endl;
 	std::cout << "Time per query: " << time_per_query << " ms" << std::endl;
+
+	double steps_per_op = static_cast<double>(graph->step_count) / static_cast<double>(2 * num_iters);
+	std::cout << "Steps per op: " << steps_per_op << std::endl;
 }
 
 std::vector<float> make_random_embedding(int size) {

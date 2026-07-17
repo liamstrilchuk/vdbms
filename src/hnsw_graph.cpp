@@ -292,6 +292,7 @@ float HNSWGraph::calculate_cosine_similarity(const Embedding& vec1, const Embedd
 }
 
 float HNSWGraph::calculate_cosine_similarity_avx2(const float* vec1, const float* vec2, size_t dim) const {
+	this->step_count++;
 	size_t i = 0;
 	__m256 sum_vec = _mm256_setzero_ps();
 
