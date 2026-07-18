@@ -2,6 +2,7 @@
 #include <vector>
 #include <unordered_map>
 #include <random>
+#include <queue>
 #include "types.h"
 
 using ef_pair_list = std::vector<std::pair<uint32_t, float>>;
@@ -18,6 +19,7 @@ private:
 	std::unordered_map<uint32_t, uint32_t> id_to_index;
 	std::vector<VectorNode> nodes;
 	std::vector<std::vector<HNSWNode>> layers;
+	std::vector<std::queue<uint32_t>> layer_queues;
 	bool is_initialized = false;
 
 	std::mt19937 gen;
@@ -25,6 +27,9 @@ private:
 
 	mutable std::vector<uint32_t> visited_tracker;
 	mutable uint32_t current_visited_version = 0;
+
+	std::queue<uint32_t> last_queried_indexes;
+	void add_to_queried_indexes(uint32_t id);
 
 	void create_layers();
 	uint32_t get_node_layer();

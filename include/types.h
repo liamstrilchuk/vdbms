@@ -13,6 +13,7 @@ struct EdgeList {
 
 struct VectorNode {
 	uint32_t id;
+	uint32_t access_count;
 	Embedding vector_data;
 	std::vector<uint32_t> neighbors;
 };
@@ -21,4 +22,5 @@ struct HNSWNode {
 	uint32_t node_index;
 	int32_t hnsw_neighbors[constants::HNSW_M];
 	uint32_t lower_level_index;
+	uint32_t higher_level_index;
 };

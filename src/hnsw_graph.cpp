@@ -16,20 +16,24 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 		return;
 	}
 
-	this->nodes.push_back({ node_id, vec, {} });
+	this->nodes.push_back({ node_id, 0, vec, {} });
 	this->id_to_index.insert({ node_id, this->nodes.size() - 1 });
 
 	if (!this->is_initialized) {
 		this->is_initialized = true;
 		uint32_t last_node_index = 0;
 
-		for (auto& layer : this->layers) {
-			layer.emplace_back(HNSWNode{
+		for (int layer = 0; layer < this->layers.size(); layer++) {
+			this->layers[layer].emplace_back(HNSWNode{
 				.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
 				.hnsw_neighbors = {-1},
-				.lower_level_index = last_node_index
+				.lower_level_index = last_node_index,
+				.higher_level_index = 0
 			});
-			last_node_index = layer.size() - 1;
+			if (layer > 0) {
+				this->layers[layer - 1][last_node_index].higher_level_index = this->layers[layer].size() - 1;
+			}
+			last_node_index = this->layers[layer].size() - 1;
 		}
 
 		return;
@@ -57,7 +61,8 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 
 		this->layers[current_layer].emplace_back(HNSWNode{
 			.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
-			.lower_level_index = 0
+			.lower_level_index = 0,
+			.higher_level_index = static_cast<uint32_t>(last_node_index == -1 ? 0 : last_node_index)
 		});
 
 		if (last_node_index != -1) {
@@ -99,9 +104,20 @@ std::vector<uint32_t> HNSWGraph::search(Embedding& vec, int knn) {
 	
 	for (int idx = ef_const.size() - 1; idx >= 0 && results.size() < knn; idx--) {
 		results.push_back(this->nodes[ef_const[idx].first].id);
+		this->add_to_queried_indexes(ef_const[idx].first);
 	}
 
 	return results;
+}
+
+void HNSWGraph::add_to_queried_indexes(uint32_t id) {
+	this->last_queried_indexes.push(id);
+	this->nodes[id].access_count++;
+
+	if (this->last_queried_indexes.size() > constants::HNSW_QUERIED_IDS_MAX_SIZE) {
+		this->nodes[this->last_queried_indexes.front()].access_count--;
+		this->last_queried_indexes.pop();
+	}
 }
 
 void HNSWGraph::create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer) {
