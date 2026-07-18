@@ -1,19 +1,53 @@
 #include "../include/hnsw_graph.h"
 
+const uint32_t BFS_STEPS = 4;
+
 void HNSWGraph::add_to_queried_indexes(uint32_t id) {
 	this->last_queried_indexes.push(id);
 	this->nodes[id].access_count++;
 
-	double ratio = (double) this->nodes[id].access_count * (double) this->nodes.size() / (double) this->last_queried_indexes.size();
-	if (this->nodes[id].access_count > 5 && ratio > 100) {
-		uint32_t promote_to = std::floor(std::log(ratio) / std::log(constants::HNSW_M));
-		this->promote(this->nodes[id].base_index, promote_to);
+	// double ratio = (double) this->nodes[id].access_count * (double) this->nodes.size() / (double) this->last_queried_indexes.size();
+	if (this->nodes[id].access_count > 5 && !this->nodes[id].is_suppressed) {
+		// uint32_t promote_to = std::floor(std::log(ratio) / std::log(constants::HNSW_M));
+		// this->promote(this->nodes[id].base_index, promote_to);
+		auto nbh = this->run_neighborhood_bfs(this->nodes[id].base_index, BFS_STEPS);
+		std::cout << "Cluster identified: ";
+		print_vector(nbh);
 	}
 
 	if (this->last_queried_indexes.size() > constants::HNSW_QUERIED_IDS_MAX_SIZE) {
 		this->nodes[this->last_queried_indexes.front()].access_count--;
 		this->last_queried_indexes.pop();
 	}
+}
+
+std::vector<uint32_t> HNSWGraph::run_neighborhood_bfs(uint32_t base_index, uint32_t steps) {
+	if (steps == BFS_STEPS) {
+		this->prepare_visited_tracker(this->layers[0].size());
+		this->visited_tracker[base_index] = this->current_visited_version;
+	}
+
+	std::vector<uint32_t> cluster;
+	cluster.push_back(base_index);
+
+	if (steps == 0) {
+		return cluster;
+	}
+
+	for (int idx = 0; idx < constants::HNSW_M; idx++) {
+		int32_t nid = this->layers[0][base_index].hnsw_neighbors[idx];
+		if (nid == -1 || this->visited_tracker[nid] == this->current_visited_version) {
+			continue;
+		}
+
+		const VectorNode& node = this->nodes[this->layers[0][nid].node_index];
+		if (node.access_count >= 3 && !node.is_suppressed) {
+			auto res = this->run_neighborhood_bfs(nid, steps - 1);
+			cluster.insert(cluster.end(), res.begin(), res.end());
+		}
+	}
+
+	return cluster;
 }
 
 void HNSWGraph::promote(uint32_t base_index, uint32_t level) {

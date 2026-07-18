@@ -10,6 +10,7 @@
 #include <queue>
 #include <immintrin.h>
 #include "types.h"
+#include "util.h"
 
 using ef_pair_list = std::vector<std::pair<uint32_t, float>>;
 
@@ -36,7 +37,7 @@ private:
 	std::queue<uint32_t> last_queried_indexes;
 	void add_to_queried_indexes(uint32_t id);
 	void promote(uint32_t base_index, uint32_t level);
-	void run_neighborhood_bfs();
+	std::vector<uint32_t> run_neighborhood_bfs(uint32_t base_index, uint32_t steps);
 
 	void create_layers();
 	uint32_t get_node_layer();
