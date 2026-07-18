@@ -17,19 +17,13 @@ std::vector<float> make_random_embedding(int size);
 std::vector<std::vector<float>> load_embeddings_from_dataset(std::string dataset_name);
 int get_random_index(int n, double p);
 
-const int NUM_NODES = 100000;
+const int NUM_NODES = 10000;
 
 int main() {
 	auto graph = std::make_unique<HNSWGraph>();
 	std::vector<std::vector<float>> embeddings;
 
 	auto add_start = std::chrono::steady_clock::now();
-
-	// for (int i = 0; i < NUM_NODES; i++) {
-	// 	std::vector<float> embedding = make_random_embedding(384);
-	// 	embeddings.push_back(embedding);
-	// 	graph->add_node(i, embedding);
-	// }
 
 	embeddings = load_embeddings_from_dataset("examples/data/embeddings.csv");
 	size_t num_iters = std::min(static_cast<int>(embeddings.size()), NUM_NODES);
@@ -48,13 +42,13 @@ int main() {
 
 	int NUM_QUERIES = 100000;
 
-	auto results1 = graph->search(embeddings[embeddings.size() / 2], 50);
+	auto results1 = graph->search(embeddings[embeddings.size() / 2], 5);
 
 	for (int i = 0; i < NUM_QUERIES; i++) {
 		// auto results = graph->search(embeddings[i], 5);
 		// int index = (get_random_index(embeddings.size(), 0.005) + embeddings.size() / 2) % embeddings.size();
 		int index = results1[i % results1.size()];
-		auto results = graph->search(embeddings[index], 5);
+		auto results = graph->search(embeddings[index], 1);
 
 		if (results.size() > 0 && results[0] == index) {
 			recalled1++;

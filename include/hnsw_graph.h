@@ -2,7 +2,13 @@
 #include <vector>
 #include <unordered_map>
 #include <random>
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <iostream>
+#include <unordered_set>
 #include <queue>
+#include <immintrin.h>
 #include "types.h"
 
 using ef_pair_list = std::vector<std::pair<uint32_t, float>>;
@@ -30,6 +36,7 @@ private:
 	std::queue<uint32_t> last_queried_indexes;
 	void add_to_queried_indexes(uint32_t id);
 	void promote(uint32_t base_index, uint32_t level);
+	void run_neighborhood_bfs();
 
 	void create_layers();
 	uint32_t get_node_layer();

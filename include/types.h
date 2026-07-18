@@ -9,6 +9,7 @@ using Embedding = std::vector<float>;
 struct VectorNode {
 	uint32_t id;
 	uint32_t access_count;
+	bool is_suppressed;
 	uint32_t base_index;
 	Embedding vector_data;
 	std::vector<uint32_t> neighbors;
