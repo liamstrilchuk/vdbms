@@ -47,7 +47,7 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 	uint32_t entry_point = 0;
 
 	while (current_layer > -1) {
-		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer]);
+		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer], true);
 
 		if (current_layer > 0) {
 			entry_point = this->layers[current_layer][closest].lower_level_index;
@@ -93,7 +93,7 @@ std::vector<uint32_t> HNSWGraph::search(Embedding& vec, int knn) {
 	uint32_t entry_point = 0;
 
 	while (current_layer > 0) {
-		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer]);
+		uint32_t closest = this->find_closest_in_layer(vec, entry_point, this->layers[current_layer], true);
 
 		entry_point = this->layers[current_layer][closest].lower_level_index;
 
@@ -261,7 +261,7 @@ std::vector<int32_t> HNSWGraph::prune_ef_construction(
 }
 
 uint32_t HNSWGraph::find_closest_in_layer(
-	Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer
+	Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer, bool count_steps
 ) const {
 	float best_similarity = this->calculate_cosine_similarity_avx2(
 		vec.data(), this->nodes[layer[start_node].node_index].vector_data.data(), 384
@@ -270,7 +270,9 @@ uint32_t HNSWGraph::find_closest_in_layer(
 
 	bool has_changed = true;
 	while (has_changed) {
-		this->step_count++;
+		if (count_steps) {
+			this->step_count++;
+		}
 		has_changed = false;
 		int32_t* neighbors = layer[best_index].hnsw_neighbors;
 

@@ -17,7 +17,7 @@ std::vector<float> make_random_embedding(int size);
 std::vector<std::vector<float>> load_embeddings_from_dataset(std::string dataset_name);
 int get_random_index(int n, double p);
 
-const int NUM_NODES = 1000;
+const int NUM_NODES = 50000;
 
 int main() {
 	auto graph = std::make_unique<HNSWGraph>();
@@ -40,14 +40,22 @@ int main() {
 	graph->step_count = 0;
 	auto query_start = std::chrono::steady_clock::now();
 
-	int NUM_QUERIES = 1000;
+	int NUM_QUERIES = 100000;
 
-	auto results1 = graph->search(embeddings[embeddings.size() / 2], 5);
+	std::uniform_int_distribution<int> rand_int(0, embeddings.size() - 1);
+	std::vector<uint32_t> indexes;
+
+	for (int i = 0; i < 10; i++) {
+		auto results = graph->search(embeddings[rand_int(gen)], 50);
+		for (uint32_t id : results) {
+			indexes.push_back(id);
+		}
+	}
 
 	for (int i = 0; i < NUM_QUERIES; i++) {
 		// auto results = graph->search(embeddings[i], 5);
 		// int index = (get_random_index(embeddings.size(), 0.005) + embeddings.size() / 2) % embeddings.size();
-		int index = results1[i % results1.size()];
+		int index = indexes[i % indexes.size()];
 		auto results = graph->search(embeddings[index], 1);
 
 		if (results.size() > 0 && results[0] == index) {

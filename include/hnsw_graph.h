@@ -38,6 +38,8 @@ private:
 	void add_to_queried_indexes(uint32_t id);
 	void promote(uint32_t base_index, uint32_t level);
 	std::vector<uint32_t> run_neighborhood_bfs(uint32_t base_index, uint32_t steps);
+	uint32_t find_cluster_centroid(std::vector<uint32_t> cluster, uint32_t start_node);
+	void promote_centroid(uint32_t centroid, std::vector<uint32_t> cluster);
 
 	void create_layers();
 	uint32_t get_node_layer();
@@ -46,7 +48,7 @@ private:
 	) const;
 	std::vector<int32_t> prune_ef_construction(Embedding& vec, ef_pair_list& ef_construction, std::vector<HNSWNode>& layer) const;
 	void create_reverse_connection(uint32_t node_id, uint32_t new_id, std::vector<HNSWNode>& layer);
-	uint32_t find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer) const;
+	uint32_t find_closest_in_layer(Embedding& vec, uint32_t start_node, std::vector<HNSWNode>& layer, bool count_steps) const;
 	float calculate_cosine_similarity(const Embedding& vec1, const Embedding& vec2) const;
 	float calculate_cosine_similarity_avx2(const float* vec1, const float* vec2, size_t dim) const;
 	void prepare_visited_tracker(size_t required_size) const;
