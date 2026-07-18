@@ -19,7 +19,6 @@ private:
 	std::unordered_map<uint32_t, uint32_t> id_to_index;
 	std::vector<VectorNode> nodes;
 	std::vector<std::vector<HNSWNode>> layers;
-	std::vector<std::queue<uint32_t>> layer_queues;
 	bool is_initialized = false;
 
 	std::mt19937 gen;
@@ -30,6 +29,7 @@ private:
 
 	std::queue<uint32_t> last_queried_indexes;
 	void add_to_queried_indexes(uint32_t id);
+	void promote(uint32_t base_index, uint32_t level);
 
 	void create_layers();
 	uint32_t get_node_layer();

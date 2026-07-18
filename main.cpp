@@ -1,6 +1,5 @@
 #include "include/lib/httplib.h"
 #include "include/lib/json.hpp"
-#include "include/hybrid_engine.h"
 #include "include/hnsw_graph.h"
 #include <iostream>
 #include <utility>

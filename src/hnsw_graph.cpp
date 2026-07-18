@@ -16,7 +16,7 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 		return;
 	}
 
-	this->nodes.push_back({ node_id, 0, vec, {} });
+	this->nodes.push_back({ node_id, 0, 0, vec, {} });
 	this->id_to_index.insert({ node_id, this->nodes.size() - 1 });
 
 	if (!this->is_initialized) {
@@ -28,10 +28,12 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 				.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
 				.hnsw_neighbors = {-1},
 				.lower_level_index = last_node_index,
-				.higher_level_index = 0
+				.higher_level_index = -1
 			});
 			if (layer > 0) {
 				this->layers[layer - 1][last_node_index].higher_level_index = this->layers[layer].size() - 1;
+			} else {
+				this->nodes.back().base_index = this->layers[0].size() - 1;
 			}
 			last_node_index = this->layers[layer].size() - 1;
 		}
@@ -62,8 +64,12 @@ void HNSWGraph::add_node(uint32_t node_id, Embedding& vec) {
 		this->layers[current_layer].emplace_back(HNSWNode{
 			.node_index = static_cast<uint32_t>(this->nodes.size() - 1),
 			.lower_level_index = 0,
-			.higher_level_index = static_cast<uint32_t>(last_node_index == -1 ? 0 : last_node_index)
+			.higher_level_index = last_node_index
 		});
+
+		if (current_layer == 0) {
+			this->nodes.back().base_index = this->layers[0].size() - 1;
+		}
 
 		if (last_node_index != -1) {
 			this->layers[current_layer + 1][last_node_index].lower_level_index = this->layers[current_layer].size() - 1;
@@ -103,8 +109,10 @@ std::vector<uint32_t> HNSWGraph::search(Embedding& vec, int knn) {
 	results.reserve(knn);
 	
 	for (int idx = ef_const.size() - 1; idx >= 0 && results.size() < knn; idx--) {
+		if (idx == ef_const.size() - 1) {
+			this->add_to_queried_indexes(ef_const[idx].first);
+		}
 		results.push_back(this->nodes[ef_const[idx].first].id);
-		this->add_to_queried_indexes(ef_const[idx].first);
 	}
 
 	return results;
@@ -114,9 +122,56 @@ void HNSWGraph::add_to_queried_indexes(uint32_t id) {
 	this->last_queried_indexes.push(id);
 	this->nodes[id].access_count++;
 
+	double ratio = (double) this->nodes[id].access_count * (double) this->nodes.size() / (double) this->last_queried_indexes.size();
+	if (this->nodes[id].access_count > 5 && ratio > 100) {
+		uint32_t promote_to = std::floor(std::log2(ratio));
+		this->promote(this->nodes[id].base_index, promote_to);
+	}
+
 	if (this->last_queried_indexes.size() > constants::HNSW_QUERIED_IDS_MAX_SIZE) {
 		this->nodes[this->last_queried_indexes.front()].access_count--;
 		this->last_queried_indexes.pop();
+	}
+}
+
+void HNSWGraph::promote(uint32_t base_index, uint32_t level) {
+	VectorNode& node = this->nodes[this->layers[0][base_index].node_index];
+	uint32_t current_level = 0;
+	uint32_t current_index = base_index;
+
+	while (this->layers[current_level][current_index].higher_level_index != -1) {
+		uint32_t next_index = this->layers[current_level][current_index].higher_level_index;
+		current_level++;
+		current_index = next_index;
+	}
+
+	if (current_level < level && current_level < this->layers.size() - 1) {
+		std::cout << "Promoting " << node.id << " from " << current_level << " to " << level << std::endl;
+	}
+
+	while (current_level < level && current_level < this->layers.size() - 1) {
+		current_level++;
+
+		uint32_t closest = this->find_closest_in_layer(node.vector_data, 0, this->layers[current_level]);
+		auto ef_const = this->run_ef_construction(node.vector_data, closest, this->layers[current_level], constants::HNSW_EF_CONSTRUCTION);
+		auto pruned = this->prune_ef_construction(node.vector_data, ef_const, this->layers[current_level]);
+
+		this->layers[current_level].emplace_back(HNSWNode{
+			.node_index = this->layers[current_level - 1][current_index].node_index,
+			.hnsw_neighbors = {-1},
+			.lower_level_index = current_index,
+			.higher_level_index = -1
+		});
+		this->layers[current_level - 1][current_index].higher_level_index = this->layers[current_level].size() - 1;
+		current_index = this->layers[current_level].size() - 1;
+
+		std::copy(pruned.begin(), pruned.end(), this->layers[current_level].back().hnsw_neighbors);
+
+		for (int idx = 0; idx < constants::HNSW_M; idx++) {
+			if (pruned[idx] != -1) {
+				this->create_reverse_connection(pruned[idx], current_index, this->layers[current_level]);
+			}
+		}
 	}
 }
 
@@ -272,6 +327,7 @@ uint32_t HNSWGraph::find_closest_in_layer(
 
 	bool has_changed = true;
 	while (has_changed) {
+		this->step_count++;
 		has_changed = false;
 		int32_t* neighbors = layer[best_index].hnsw_neighbors;
 
@@ -308,7 +364,6 @@ float HNSWGraph::calculate_cosine_similarity(const Embedding& vec1, const Embedd
 }
 
 float HNSWGraph::calculate_cosine_similarity_avx2(const float* vec1, const float* vec2, size_t dim) const {
-	this->step_count++;
 	size_t i = 0;
 	__m256 sum_vec = _mm256_setzero_ps();
 
